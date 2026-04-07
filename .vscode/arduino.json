@@ -1,0 +1,22 @@
+{
+  "port": "/dev/cu.usbmodem112301",
+  "configuration": "",
+  "output": "build",
+  "board": "arduino:mbed_nano:nano33ble",
+  "programmer": "",
+  "useProgrammer": false,
+  "optimize_for_debug": false,
+  "configurationRequired": false,
+  "compile_profile": "",
+  "monitorPortSettings": {
+    "settings": {
+      "port": "/dev/tty.usbmodem112301",
+      "baudRate": 115200,
+      "lineEnding": "\r\n",
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": "one"
+    },
+    "profile_name": ""
+  }
+}
