@@ -64,7 +64,7 @@ void setup() {
     while (true) {}
   }
 
-  BLE.setLocalName("PowerCounter");
+  BLE.setLocalName("PowerMonitor");
   BLE.setAdvertisedService(meterService);
 
   meterService.addCharacteristic(energyChar);
@@ -77,7 +77,7 @@ void setup() {
   intervalChar.writeValue(notifyIntervalSec);
 
   BLE.advertise();
-  Serial.println("PowerCounter ready — advertising over BLE");
+  Serial.println("PowerMonitor ready — advertising over BLE");
 }
 
 void loop() {

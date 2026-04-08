@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-client.py — BLE client for the PowerCounter Arduino sketch.
+client.py — BLE client for the PowerMonitor Arduino sketch.
 
 Connects to the Nano 33 BLE Sense, reads current values immediately,
 then listens for periodic notifications.
@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Optional
 from bleak import BleakClient, BleakScanner
 
-DEVICE_NAME   = "PowerCounter"
+DEVICE_NAME   = "PowerMonitor"
 ENERGY_UUID   = "12340001-0000-1000-8000-00805f9b34fb"  # uint32, Wh
 POWER_UUID    = "12340002-0000-1000-8000-00805f9b34fb"  # uint32, mW
 INTERVAL_UUID = "12340003-0000-1000-8000-00805f9b34fb"  # uint16, seconds
@@ -96,7 +96,7 @@ async def main(notify_interval: int | None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="PowerCounter BLE client")
+    parser = argparse.ArgumentParser(description="PowerMonitor BLE client")
     parser.add_argument(
         "--interval", type=int, default=None, metavar="SECONDS",
         help="Set notification interval on the device (1–65535 s). "
