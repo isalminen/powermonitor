@@ -14,13 +14,15 @@ import asyncio
 import struct
 import argparse
 from datetime import datetime
-from typing import Optional
 from bleak import BleakClient, BleakScanner
 
 DEVICE_NAME   = "PowerMonitor"
 ENERGY_UUID   = "12340001-0000-1000-8000-00805f9b34fb"  # uint32, Wh
 POWER_UUID    = "12340002-0000-1000-8000-00805f9b34fb"  # uint32, mW
 INTERVAL_UUID = "12340003-0000-1000-8000-00805f9b34fb"  # uint16, seconds
+THRESHOLD_UUID = "12340004-0000-1000-8000-00805F9B34FB" # uint16
+MAXLIGHT_UUID  = "12340005-0000-1000-8000-00805F9B34FB" # uint16
+
 
 
 def decode_uint32(data: bytearray) -> int:
@@ -52,8 +54,13 @@ def on_power(sender, data: bytearray):
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"[{ts}] Power   {fmt_power(mw)}")
 
+def on_peak_light(sender, data: bytearray):
+    peak = decode_uint16(data)
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(f"[{ts}] Peak light   {peak}")
 
-async def main(notify_interval: int | None):
+
+async def main(notify_interval: int | None, threshold: int | None):
     print(f"Scanning for '{DEVICE_NAME}'…")
     device = await BleakScanner.find_device_by_name(DEVICE_NAME, timeout=15)
     if device is None:
@@ -69,6 +76,12 @@ async def main(notify_interval: int | None):
             await client.write_gatt_char(INTERVAL_UUID, interval_bytes, response=True)
             print(f"Notification interval set to {notify_interval} s")
 
+        # Optionally update the blink detection threshold on the device
+        if threshold is not None:
+            threshold_bytes = struct.pack("<H", threshold)
+            await client.write_gatt_char(THRESHOLD_UUID, threshold_bytes, response=True)
+            print(f"Threshold set to {threshold}")
+
         # Read the current interval stored on the device
         raw = await client.read_gatt_char(INTERVAL_UUID)
         print(f"Device notify interval: {decode_uint16(raw)} s")
@@ -76,13 +89,19 @@ async def main(notify_interval: int | None):
         # Read current values immediately (don't wait for first notification)
         energy_raw = await client.read_gatt_char(ENERGY_UUID)
         power_raw  = await client.read_gatt_char(POWER_UUID)
+        threshold_raw = await client.read_gatt_char(THRESHOLD_UUID)
+        peak_raw  = await client.read_gatt_char(MAXLIGHT_UUID)
+
         print(f"Current  energy : {fmt_energy(decode_uint32(energy_raw))}")
         print(f"Current  power  : {fmt_power(decode_uint32(power_raw))}")
+        print(f"Current  threshold : {decode_uint16(threshold_raw)}")
+        print(f"Current  peak light  : {decode_uint16(peak_raw)}")
         print("\nListening for notifications (Ctrl-C to stop)…\n")
 
         # Subscribe to notifications
         await client.start_notify(ENERGY_UUID, on_energy)
         await client.start_notify(POWER_UUID, on_power)
+        await client.start_notify(MAXLIGHT_UUID, on_peak_light)
 
         try:
             while True:
@@ -92,6 +111,7 @@ async def main(notify_interval: int | None):
 
         await client.stop_notify(ENERGY_UUID)
         await client.stop_notify(POWER_UUID)
+        await client.stop_notify(MAXLIGHT_UUID)
         print("\nDisconnected.")
 
 
@@ -102,5 +122,10 @@ if __name__ == "__main__":
         help="Set notification interval on the device (1–65535 s). "
              "Omit to keep the current device setting."
     )
+    parser.add_argument(
+        "--threshold", type=int, default=None, metavar="COUNTS",
+        help="Set the blink detection threshold on the device (0–65535 raw sensor counts). "
+             "Omit to keep the current device setting."
+    )
     args = parser.parse_args()
-    asyncio.run(main(args.interval))
+    asyncio.run(main(args.interval, args.threshold))

@@ -3,24 +3,30 @@
 // and exposes total energy (Wh) and current power (mW) over BLE.
 //
 // BLE characteristics
-//   ENERGY_UUID   uint32  Wh   read + notify
-//   POWER_UUID    uint32  mW   read + notify  (divide by 1000 for W, 1 000 000 for kW)
-//   INTERVAL_UUID uint16  s    read + write   (notification interval, default 10 s)
+//   ENERGY_UUID    uint32  Wh    read + notify
+//   POWER_UUID     uint32  mW    read + notify  (divide by 1000 for W, 1 000 000 for kW)
+//   INTERVAL_UUID  uint16  s     read + write   (notification interval, default 10 s)
+//   THRESHOLD_UUID uint16  count read + write   (blink detection threshold, raw sensor units)
+//   MAXLIGHT_UUID  uint16  count read + notify  (peak light level seen in last notify interval)
 
 #include <ArduinoBLE.h>
 #include <Arduino_APDS9960.h>
 
 // ── BLE UUIDs ──────────────────────────────────────────────────────────────
-static const char* SERVICE_UUID  = "12340000-0000-1000-8000-00805F9B34FB";
-static const char* ENERGY_UUID   = "12340001-0000-1000-8000-00805F9B34FB";
-static const char* POWER_UUID    = "12340002-0000-1000-8000-00805F9B34FB";
-static const char* INTERVAL_UUID = "12340003-0000-1000-8000-00805F9B34FB";
+static const char* SERVICE_UUID   = "12340000-0000-1000-8000-00805F9B34FB";
+static const char* ENERGY_UUID    = "12340001-0000-1000-8000-00805F9B34FB";
+static const char* POWER_UUID     = "12340002-0000-1000-8000-00805F9B34FB";
+static const char* INTERVAL_UUID  = "12340003-0000-1000-8000-00805F9B34FB";
+static const char* THRESHOLD_UUID = "12340004-0000-1000-8000-00805F9B34FB";
+static const char* MAXLIGHT_UUID  = "12340005-0000-1000-8000-00805F9B34FB";
 
 // ── BLE objects ────────────────────────────────────────────────────────────
 BLEService                     meterService(SERVICE_UUID);
-BLEUnsignedIntCharacteristic   energyChar(ENERGY_UUID,   BLERead | BLENotify);
-BLEUnsignedIntCharacteristic   powerChar(POWER_UUID,     BLERead | BLENotify);
-BLEUnsignedShortCharacteristic intervalChar(INTERVAL_UUID, BLERead | BLEWrite);
+BLEUnsignedIntCharacteristic   energyChar(ENERGY_UUID,      BLERead | BLENotify);
+BLEUnsignedIntCharacteristic   powerChar(POWER_UUID,        BLERead | BLENotify);
+BLEUnsignedShortCharacteristic intervalChar(INTERVAL_UUID,  BLERead | BLEWrite);
+BLEUnsignedShortCharacteristic thresholdChar(THRESHOLD_UUID, BLERead | BLEWrite);
+BLEUnsignedShortCharacteristic maxlightChar(MAXLIGHT_UUID,  BLERead | BLENotify);
 
 // ── Blink tracking ─────────────────────────────────────────────────────────
 uint32_t      totalWh      = 0;
@@ -39,6 +45,9 @@ static const unsigned long DEBOUNCE_MS = 200;
 // ── Notification interval ──────────────────────────────────────────────────
 uint16_t      notifyIntervalSec = 10;
 unsigned long lastNotifyMs      = 0;
+
+// ── Max light tracking (reset every notification interval) ─────────────────
+int intervalMaxLight = 0;
 
 // ── Forward declarations ───────────────────────────────────────────────────
 void     calibrate();
@@ -70,11 +79,15 @@ void setup() {
   meterService.addCharacteristic(energyChar);
   meterService.addCharacteristic(powerChar);
   meterService.addCharacteristic(intervalChar);
+  meterService.addCharacteristic(thresholdChar);
+  meterService.addCharacteristic(maxlightChar);
   BLE.addService(meterService);
 
   energyChar.writeValue((uint32_t)0);
   powerChar.writeValue((uint32_t)0);
   intervalChar.writeValue(notifyIntervalSec);
+  thresholdChar.writeValue((uint16_t)threshold);   // set after calibrate()
+  maxlightChar.writeValue((uint16_t)0);
 
   BLE.advertise();
   Serial.println("PowerMonitor ready — advertising over BLE");
@@ -92,10 +105,18 @@ void loop() {
     Serial.println(" s");
   }
 
+  // Accept threshold updates written by a connected client
+  if (thresholdChar.written()) {
+    threshold = (int)thresholdChar.value();
+    Serial.print("Threshold → ");
+    Serial.println(threshold);
+  }
+
   // Poll the light sensor
   if (APDS.colorAvailable()) {
     int r, g, b, c;
     APDS.readColor(r, g, b, c);
+    if (c > intervalMaxLight) intervalMaxLight = c;
     detectBlink(c);
   }
 
@@ -177,8 +198,12 @@ void sendNotification() {
   uint32_t mw = currentPowerMW();
   energyChar.writeValue(totalWh);
   powerChar.writeValue(mw);
+  maxlightChar.writeValue((uint16_t)intervalMaxLight);
 
   Serial.print("Notify → Wh="); Serial.print(totalWh);
   Serial.print("  W=");          Serial.print(mw / 1000.0, 2);
-  Serial.print("  kW=");         Serial.println(mw / 1000000.0, 4);
+  Serial.print("  kW=");         Serial.print(mw / 1000000.0, 4);
+  Serial.print("  maxLight=");   Serial.println(intervalMaxLight);
+
+  intervalMaxLight = 0;   // reset peak for next interval
 }

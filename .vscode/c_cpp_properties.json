@@ -4,7 +4,7 @@
       "name": "Arduino",
       "includePath": [
         "/Users/ilkka/Documents/Arduino/libraries/**",
-        "/Users/ilkka/Projects/powercounter/**",
+        "/Users/ilkka/Projects/powermonitor/**",
         "/Users/ilkka/Library/Arduino15/packages/arduino/hardware/mbed_nano/4.5.0/cores/arduino/**",
         "/Users/ilkka/Library/Arduino15/packages/arduino/hardware/mbed_nano/4.5.0/variants/ARDUINO_NANO33BLE/**",
         "/Users/ilkka/Documents/Arduino/libraries/ArduinoBLE/src/**",
@@ -44,9 +44,9 @@
         "-I/Users/ilkka/Library/Arduino15/packages/arduino/hardware/mbed_nano/4.5.0/cores/arduino/api/deprecated-avr-comp",
         "-iprefix/Users/ilkka/Library/Arduino15/packages/arduino/hardware/mbed_nano/4.5.0/cores/arduino",
         "@/Users/ilkka/Library/Arduino15/packages/arduino/hardware/mbed_nano/4.5.0/variants/ARDUINO_NANO33BLE/includes.txt",
-        "/Users/ilkka/Projects/powercounter/build/sketch/powercounter.ino.cpp",
+        "/Users/ilkka/Projects/powermonitor/build/sketch/powermonitor.ino.cpp",
         "-o",
-        "/Users/ilkka/Projects/powercounter/build/sketch/powercounter.ino.cpp.o"
+        "/Users/ilkka/Projects/powermonitor/build/sketch/powermonitor.ino.cpp.o"
       ],
       "defines": [
         "ARDUINO_ARCH_NRF52840",

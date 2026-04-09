@@ -16,6 +16,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import PowerMonitorCoordinator
 
+# Unitless sensor descriptions use key-based value dispatch below.
+# HA doesn't have a built-in device class for raw light counts, so
+# threshold and maxlight are declared as generic measurement sensors.
+
 SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="power",
@@ -30,6 +34,20 @@ SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+    ),
+    SensorEntityDescription(
+        key="threshold",
+        name="Light Threshold",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="counts",
+        icon="mdi:compare",
+    ),
+    SensorEntityDescription(
+        key="maxlight",
+        name="Peak Light Level",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="counts",
+        icon="mdi:brightness-7",
     ),
 )
 
@@ -72,11 +90,17 @@ class PowerMonitorSensor(CoordinatorEntity[PowerMonitorCoordinator], SensorEntit
         )
 
     @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data is None:
+    def native_value(self) -> float | int | None:
+        data = self.coordinator.data
+        if data is None:
             return None
-        if self.entity_description.key == "power":
-            return round(self.coordinator.data.power_w, 1)
-        if self.entity_description.key == "energy":
-            return self.coordinator.data.energy_wh
+        match self.entity_description.key:
+            case "power":
+                return round(data.power_w, 1)
+            case "energy":
+                return data.energy_wh
+            case "threshold":
+                return data.threshold
+            case "maxlight":
+                return data.maxlight
         return None

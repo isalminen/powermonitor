@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -13,7 +13,7 @@ from homeassistant.components.bluetooth import async_ble_device_from_address
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, ENERGY_UUID, POWER_UUID
+from .const import DOMAIN, ENERGY_UUID, MAXLIGHT_UUID, POWER_UUID, THRESHOLD_UUID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 class PowerMonitorData:
     energy_wh: int = 0
     power_w: float = 0.0
+    threshold: int = 0
+    maxlight: int = 0
     available: bool = False
 
 
@@ -48,6 +50,15 @@ class PowerMonitorCoordinator(DataUpdateCoordinator[PowerMonitorData]):
                 pass
         if self._client and self._client.is_connected:
             await self._client.disconnect()
+
+    async def async_set_threshold(self, value: int) -> None:
+        """Write a new threshold value to the device."""
+        if self._client is None or not self._client.is_connected:
+            raise RuntimeError("Not connected to PowerMonitor")
+        data = struct.pack("<H", max(0, min(value, 65535)))
+        await self._client.write_gatt_char(THRESHOLD_UUID, data, response=True)
+        self._data.threshold = value
+        self.async_set_updated_data(self._data)
 
     async def _connection_loop(self) -> None:
         while True:
@@ -84,11 +95,18 @@ class PowerMonitorCoordinator(DataUpdateCoordinator[PowerMonitorData]):
             power_bytes = await client.read_gatt_char(POWER_UUID)
             self._data.power_w = struct.unpack("<I", bytes(power_bytes))[0] / 1000.0
 
+            threshold_bytes = await client.read_gatt_char(THRESHOLD_UUID)
+            self._data.threshold = struct.unpack("<H", bytes(threshold_bytes))[0]
+
+            maxlight_bytes = await client.read_gatt_char(MAXLIGHT_UUID)
+            self._data.maxlight = struct.unpack("<H", bytes(maxlight_bytes))[0]
+
             self._data.available = True
             self.async_set_updated_data(self._data)
 
             await client.start_notify(ENERGY_UUID, self._on_energy)
             await client.start_notify(POWER_UUID, self._on_power)
+            await client.start_notify(MAXLIGHT_UUID, self._on_maxlight)
 
             _LOGGER.info("Connected to PowerMonitor at %s", self.address)
 
@@ -114,6 +132,10 @@ class PowerMonitorCoordinator(DataUpdateCoordinator[PowerMonitorData]):
 
     def _on_power(self, _char: BleakGATTCharacteristic, data: bytearray) -> None:
         self._data.power_w = struct.unpack("<I", bytes(data))[0] / 1000.0
+        self.async_set_updated_data(self._data)
+
+    def _on_maxlight(self, _char: BleakGATTCharacteristic, data: bytearray) -> None:
+        self._data.maxlight = struct.unpack("<H", bytes(data))[0]
         self.async_set_updated_data(self._data)
 
     async def _async_update_data(self) -> PowerMonitorData:
